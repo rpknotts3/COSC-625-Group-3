@@ -1,7 +1,9 @@
 require('dotenv').config();
 const connectMongoDB = require('./mongoose');
 connectMongoDB();
+const User = require('./models/User');
 const express = require('express');
+const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const bcrypt = require('bcrypt');
@@ -31,6 +33,7 @@ app.use(
     rateLimit({ windowMs: 15 * 60 * 1000, max: 100, standardHeaders: true, legacyHeaders: false })
 );
 app.use(express.json());
+app.use(cors());
 app.use(express.urlencoded({ extended: true }));
 
 // Static files
@@ -143,9 +146,9 @@ const upload = multer({
 // Routes
 // Health check
 app.get('/api/ping', (_req, res) => res.json({ message: 'CEMS backend up.' }));
-
-// User registration
+//user registration
 app.post('/api/users', async (req, res) => {
+  console.log('Incoming registration body:', req.body);
   try {
     const { full_name, email, password, role } = req.body;
     if (!full_name || !email || !password)
@@ -153,15 +156,14 @@ app.post('/api/users', async (req, res) => {
     if (password.length < 6)
       return res.status(400).json({ error: 'Password must be at least 6 characters long.' });
 
-    const [exists] = await pool.query('SELECT 1 FROM users WHERE email=?', [email]);
-    if (exists.length) return res.status(409).json({ error: 'Email taken.' });
+    const existingUser = await User.findOne({ email });
+    if (existingUser)
+      return res.status(409).json({ error: 'Email taken.' });
 
-    const hash = await bcrypt.hash(password, 12);
-    const [r] = await pool.query(
-        'INSERT INTO users (full_name,email,password,role) VALUES (?,?,?,?)',
-        [full_name, email, hash, role || 'student']
-    );
-    res.status(201).json({ id: r.insertId, full_name, email, role: role || 'student' });
+    const newUser = new User({ full_name, email, password, role: role || 'student' });
+    await newUser.save();
+
+    res.status(201).json({ id: newUser._id, full_name, email, role: newUser.role });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'Server error creating user.' });
@@ -171,18 +173,18 @@ app.post('/api/users', async (req, res) => {
 // User login
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
-  if (!email || !password) return res.status(400).json({ error: 'email and password required.' });
+  if (!email || !password)
+    return res.status(400).json({ error: 'email and password required.' });
+
   try {
-    const [rows] = await pool.query(
-        'SELECT user_id,full_name,email,password,role FROM users WHERE email=?',
-        [email]
-    );
-    if (!rows.length || !(await bcrypt.compare(password, rows[0].password)))
+    const user = await User.findOne({ email });
+    if (!user || !(await user.comparePassword(password)))
       return res.status(401).json({ error: 'Invalid credentials.' });
 
-    const token = jwt.sign({ id: rows[0].user_id, email, role: rows[0].role }, JWT_SECRET, {
+    const token = jwt.sign({ id: user._id, email: user.email, role: user.role }, JWT_SECRET, {
       expiresIn: '1h'
     });
+
     res.json({ token });
   } catch (e) {
     console.error(e);
