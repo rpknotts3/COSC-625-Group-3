@@ -24,16 +24,16 @@ const User           = require('./models/User');
     console.log('✅  MongoDB Connected Successfully');
 
     // 2) Init Express
-    const app = express();
-    const PORT = process.env.PORT || 3000;
+    const app        = express();
+    const PORT       = process.env.PORT || 3000;
     const JWT_SECRET = process.env.JWT_SECRET || 'supersecretlocalkey';
 
     // 3) MySQL pool
     const pool = mysql.createPool({
-      host:     process.env.DB_HOST || 'localhost',
-      user:     process.env.DB_USER || 'root',
-      password: process.env.DB_PASS || '',
-      database: process.env.DB_NAME || 'campus_event_management',
+      host:               process.env.DB_HOST || 'localhost',
+      user:               process.env.DB_USER || 'root',
+      password:           process.env.DB_PASS || '',
+      database:           process.env.DB_NAME || 'campus_event_management',
       waitForConnections: true,
       connectionLimit:    10
     });
@@ -41,8 +41,8 @@ const User           = require('./models/User');
     // ─── Global middleware ────────────────────────────────────────────────
     app.use(helmet());
     app.use(rateLimit({
-      windowMs: 15 * 60 * 1000,
-      max:      100,
+      windowMs:        15 * 60 * 1000,
+      max:             100,
       standardHeaders: true,
       legacyHeaders:   false
     }));
@@ -58,10 +58,10 @@ const User           = require('./models/User');
     // ─── Mail transport ────────────────────────────────────────────────────
     const mailTransport = process.env.SMTP_HOST
       ? nodemailer.createTransport({
-          host: process.env.SMTP_HOST,
-          port: Number(process.env.SMTP_PORT || 587),
+          host:   process.env.SMTP_HOST,
+          port:   Number(process.env.SMTP_PORT || 587),
           secure: false,
-          auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
+          auth:   { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
         })
       : null;
 
@@ -126,15 +126,18 @@ const User           = require('./models/User');
       if (!recipients.length) return;
 
       const rows = recipients.map(r => [r.user_id, body, 'event_update']);
-      await pool.query('INSERT INTO notifications (user_id,message,notification_type) VALUES ?', [rows]);
+      await pool.query(
+        'INSERT INTO notifications (user_id,message,notification_type) VALUES ?',
+        [rows]
+      );
 
       if (mailTransport) {
         try {
           await mailTransport.sendMail({
-            from: process.env.SMTP_FROM || 'no-reply@cems.local',
-            bcc: recipients.map(r => r.email),
+            from:    process.env.SMTP_FROM || 'no-reply@cems.local',
+            bcc:     recipients.map(r => r.email),
             subject,
-            text: body
+            text:    body
           });
         } catch (e) {
           console.error('Email error:', e);
@@ -159,53 +162,55 @@ const User           = require('./models/User');
     }
 
     // ─── Routes ───────────────────────────────────────────────────────────
+
+    // Health check
     app.get('/api/ping', (_req, res) => res.json({ message: 'CEMS backend up.' }));
 
-    // User registration
-app.post('/api/users', async (req, res) => {
-  console.log('Incoming registration body:', req.body);
-  try {
-    const { full_name, email, password, role } = req.body;
-    if (!full_name || !email || !password) {
-      return res
-        .status(400)
-        .json({ error: 'full_name, email, and password are required.' });
-    }
-    if (password.length < 6) {
-      return res
-        .status(400)
-        .json({ error: 'Password must be at least 6 characters long.' });
-    }
+    // ——— User registration ————————————————————————————————————————
+    app.post('/api/users', async (req, res) => {
+      console.log('Incoming registration body:', req.body);
+      try {
+        const { full_name, email, password, role } = req.body;
+        if (!full_name || !email || !password) {
+          return res
+            .status(400)
+            .json({ error: 'full_name, email, and password are required.' });
+        }
+        if (password.length < 6) {
+          return res
+            .status(400)
+            .json({ error: 'Password must be at least 6 characters long.' });
+        }
 
-    if (await User.findOne({ email })) {
-      return res.status(409).json({ error: 'Email taken.' });
-    }
+        // prevent duplicates
+        if (await User.findOne({ email })) {
+          return res.status(409).json({ error: 'Email taken.' });
+        }
 
-    const hashed = await bcrypt.hash(password, 10);
-    const newUser = new User({
-      full_name,
-      email,
-      password: hashed,
-      role: role || 'student',
+        // hash + save
+        const hashed = await bcrypt.hash(password, 10);
+        const newUser = new User({
+          full_name,
+          email,
+          password: hashed,
+          role:     role || 'student',
+        });
+        await newUser.save();
+
+        // respond with the new user’s data
+        res.status(201).json({
+          id:        newUser._id,
+          full_name: newUser.full_name,
+          email:     newUser.email,
+          role:      newUser.role,
+        });
+      } catch (err) {
+        console.error('❌ Registration error:', err);
+        res.status(500).json({ error: err.message || String(err) });
+      }
     });
-    await newUser.save();
 
-    res.status(201).json({
-      id: newUser._id,
-      full_name: newUser.full_name,
-      email: newUser.email,
-      role: newUser.role,
-    });
-  } catch (err) {
-    console.error('❌ Registration error:', err);
-    // return the real error message for debugging
-    res
-      .status(500)
-      .json({ error: err.message || String(err) });
-  }
-});
-
-    // User login
+    // ——— User login ——————————————————————————————————————————————
     app.post('/api/auth/login', async (req, res) => {
       const { email, password } = req.body;
       if (!email || !password)
@@ -223,17 +228,19 @@ app.post('/api/users', async (req, res) => {
         );
         res.json({ token });
       } catch (e) {
-        console.error(e);
+        console.error('Login error:', e);
         res.status(500).json({ error: 'Server error logging in.' });
       }
     });
 
-    // Event listing & search
+    // ——— Event listing ——————————————————————————————————————————
     app.get('/api/events', async (_req, res) => {
       try {
         const [rows] = await pool.query(
           `SELECT event_id,event_name,description,event_date,event_time,venue_id,category_id,organizer_id,status
-           FROM events WHERE status='approved' ORDER BY event_date,event_time`
+           FROM events
+           WHERE status='approved'
+           ORDER BY event_date,event_time`
         );
         res.json(rows);
       } catch (e) {
@@ -249,12 +256,12 @@ app.post('/api/users', async (req, res) => {
         where.push('(LOWER(event_name) LIKE ? OR LOWER(description) LIKE ?)');
         params.push(`%${keyword.toLowerCase()}%`, `%${keyword.toLowerCase()}%`);
       }
-      if (status)   { where.push('LOWER(status)=?');    params.push(status.toLowerCase()); }
-      if (start)    { where.push('event_date>=?');      params.push(start); }
-      if (end)      { where.push('event_date<=?');      params.push(end); }
-      if (venue)    { where.push('venue_id=?');         params.push(Number(venue)); }
-      if (category) { where.push('category_id=?');      params.push(Number(category)); }
-      if (organizer){ where.push('organizer_id=?');     params.push(Number(organizer)); }
+      if (status)    { where.push('LOWER(status)=?');   params.push(status.toLowerCase()); }
+      if (start)     { where.push('event_date>=?');     params.push(start); }
+      if (end)       { where.push('event_date<=?');     params.push(end); }
+      if (venue)     { where.push('venue_id=?');        params.push(Number(venue)); }
+      if (category)  { where.push('category_id=?');     params.push(Number(category)); }
+      if (organizer) { where.push('organizer_id=?');    params.push(Number(organizer)); }
 
       let sql = 'SELECT event_id,event_name,description,event_date,event_time,venue_id,category_id,organizer_id,status FROM events';
       if (where.length) sql += ' WHERE ' + where.join(' AND ');
@@ -269,7 +276,7 @@ app.post('/api/users', async (req, res) => {
       }
     });
 
-    // Create event
+    // ——— Create event ——————————————————————————————————————————
     app.post('/api/events', requireAuth, requireOrganizerOrAdmin, async (req, res) => {
       const { event_name, description, event_date, event_time, venue_id, category_id, course_id } = req.body;
       if (!event_name || !description || !event_date || !event_time)
@@ -290,7 +297,7 @@ app.post('/api/users', async (req, res) => {
       }
     });
 
-    // Approve/reject event
+    // ——— Approve/reject event —————————————————————————————————————
     app.patch('/api/events/:id/approve', requireAuth, requireAdmin, async (req, res) => {
       const id = Number(req.params.id);
       const [rows] = await pool.query('SELECT * FROM events WHERE event_id=?', [id]);
@@ -300,7 +307,6 @@ app.post('/api/users', async (req, res) => {
       await dispatchEventNotification(id, 'New Event Approved', `Event "${rows[0].event_name}" approved.`);
       res.json({ message: 'Event approved.' });
     });
-
     app.patch('/api/events/:id/reject', requireAuth, requireAdmin, async (req, res) => {
       const id = Number(req.params.id);
       const [rows] = await pool.query('SELECT * FROM events WHERE event_id=?', [id]);
@@ -310,7 +316,7 @@ app.post('/api/users', async (req, res) => {
       res.json({ message: 'Event rejected.' });
     });
 
-    // Update event
+    // ——— Update event ——————————————————————————————————————————
     app.patch('/api/events/:id', requireAuth, requireOrganizerOrAdmin, async (req, res) => {
       const id = Number(req.params.id);
       const { event_name, description, event_date, event_time, venue_id, category_id } = req.body;
@@ -326,13 +332,13 @@ app.post('/api/users', async (req, res) => {
            venue_id=COALESCE(?,venue_id),
            category_id=COALESCE(?,category_id)
          WHERE event_id=?`,
-        [event_name,description,event_date,event_time,venue_id,category_id, id]
+        [event_name,description,event_date,event_time,venue_id,category_id,id]
       );
       await dispatchEventNotification(id, 'Event Updated', `Event "${rows[0].event_name}" has updates.`);
       res.json({ message: 'Event updated.' });
     });
 
-    // Resource upload/listing
+    // ——— Resources ——————————————————————————————————————————————
     app.post('/api/events/:id/resources', requireAuth, requireOrganizerOrAdmin, upload.single('file'), async (req, res) => {
       const eventId = Number(req.params.id);
       if (!req.file) return res.status(400).json({ error: 'File required.' });
@@ -348,7 +354,6 @@ app.post('/api/users', async (req, res) => {
         res.status(500).json({ error: 'Server error uploading resource.' });
       }
     });
-
     app.get('/api/events/:id/resources', requireAuth, async (req, res) => {
       const id = Number(req.params.id);
       try {
@@ -363,33 +368,30 @@ app.post('/api/users', async (req, res) => {
       }
     });
 
-    // Registrations & feedback
+    // ——— Registrations & feedback ——————————————————————————————————
     app.post('/api/events/:id/registrations', requireAuth, requireStudent, async (req, res) => {
       const id = Number(req.params.id);
       try {
-        const [ev] = await pool.query(
-          'SELECT status, course_id FROM events WHERE event_id = ?',
-          [id]
-        );
+        const [ev] = await pool.query('SELECT status, course_id FROM events WHERE event_id=?', [id]);
         if (!ev.length) return res.status(404).json({ error: 'Event not found.' });
         if (ev[0].status !== 'approved') return res.status(400).json({ error: 'Event not approved yet.' });
 
         if (ev[0].course_id) {
           const [en] = await pool.query(
-            'SELECT 1 FROM course_enrollments WHERE course_id = ? AND user_id = ?',
+            'SELECT 1 FROM course_enrollments WHERE course_id=? AND user_id=?',
             [ev[0].course_id, req.user.id]
           );
           if (!en.length) return res.status(403).json({ error: 'Not enrolled in course' });
         }
 
         const [dup] = await pool.query(
-          'SELECT 1 FROM registrations WHERE event_id = ? AND user_id = ? AND status = "registered"',
+          'SELECT 1 FROM registrations WHERE event_id=? AND user_id=? AND status="registered"',
           [id, req.user.id]
         );
         if (dup.length) return res.status(400).json({ error: 'Already registered.' });
 
         await pool.query(
-          'INSERT INTO registrations (event_id, user_id, status) VALUES (?, ?, "registered")',
+          'INSERT INTO registrations (event_id, user_id, status) VALUES (?,?, "registered")',
           [id, req.user.id]
         );
         res.status(201).json({ message: 'Registration successful.' });
@@ -398,7 +400,6 @@ app.post('/api/users', async (req, res) => {
         res.status(500).json({ error: 'Server error registering.' });
       }
     });
-
     app.delete('/api/events/:id/registrations', requireAuth, requireStudent, async (req, res) => {
       const id = Number(req.params.id);
       try {
@@ -433,7 +434,6 @@ app.post('/api/users', async (req, res) => {
         res.status(500).json({ error: 'Server error listing feedback.' });
       }
     });
-
     app.post('/api/events/:id/feedback', requireAuth, requireStudent, async (req, res) => {
       const id = Number(req.params.id);
       const { rating, comments } = req.body;
@@ -463,7 +463,6 @@ app.post('/api/users', async (req, res) => {
         res.status(500).json({ error: 'Server error listing notifications.' });
       }
     });
-
     app.post('/api/notifications', requireAuth, async (req, res) => {
       const { message } = req.body;
       if (!message) return res.status(400).json({ error: 'message required.' });
@@ -475,7 +474,6 @@ app.post('/api/users', async (req, res) => {
         res.status(500).json({ error: 'Server error creating notification.' });
       }
     });
-
     app.patch('/api/notifications/:id/read', requireAuth, async (req, res) => {
       try {
         await pool.query(
@@ -518,7 +516,6 @@ app.post('/api/users', async (req, res) => {
         res.status(500).json({ error: 'Server error during check-in.' });
       }
     });
-
     app.post('/api/events/:id/checkout', requireAuth, requireStudent, async (req, res) => {
       const eventId = Number(req.params.id);
       try {
@@ -586,7 +583,7 @@ app.post('/api/users', async (req, res) => {
 
         await scheduleReminder(eventId, when);
         res.status(201).json({
-          message: 'Reminder scheduled.',
+          message:       'Reminder scheduled.',
           reminder_time: toMySqlDateTime(when)
         });
       } catch (e) {
