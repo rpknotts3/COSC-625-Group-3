@@ -1,17 +1,17 @@
-// mongoose.js
 const mongoose = require('mongoose');
+const bcrypt = require('bcrypt');
 
-async function connectMongoDB() {
-  try {
-    await mongoose.connect(process.env.MONGO_URI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true
-    });
-    console.log('✅ MongoDB Connected Successfully');
-  } catch (error) {
-    console.error('❌ MongoDB connection error:', error);
-    process.exit(1); // Exit if cannot connect
-  }
-}
+const UserSchema = new mongoose.Schema({
+  full_name: { type: String, required: true, trim: true },
+  email:     { type: String, required: true, unique: true, lowercase: true, trim: true },
+  password:  { type: String, required: true },
+  role:      { type: String,
+               enum: ['student','organizer','admin'],
+               default: 'student' }
+}, { timestamps: true });
 
-module.exports = connectMongoDB;
+UserSchema.methods.comparePassword = function (candidatePassword) {
+  return bcrypt.compare(candidatePassword, this.password);
+};
+
+module.exports = mongoose.model('User', UserSchema);
