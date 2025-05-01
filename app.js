@@ -162,33 +162,48 @@ const User           = require('./models/User');
     app.get('/api/ping', (_req, res) => res.json({ message: 'CEMS backend up.' }));
 
     // User registration
-    app.post('/api/users', async (req, res) => {
-      console.log('Incoming registration body:', req.body);
-      try {
-        const { full_name, email, password, role } = req.body;
-        if (!full_name || !email || !password)
-          return res.status(400).json({ error: 'full_name, email, and password are required.' });
-        if (password.length < 6)
-          return res.status(400).json({ error: 'Password must be at least 6 characters long.' });
+app.post('/api/users', async (req, res) => {
+  console.log('Incoming registration body:', req.body);
+  try {
+    const { full_name, email, password, role } = req.body;
+    if (!full_name || !email || !password) {
+      return res
+        .status(400)
+        .json({ error: 'full_name, email, and password are required.' });
+    }
+    if (password.length < 6) {
+      return res
+        .status(400)
+        .json({ error: 'Password must be at least 6 characters long.' });
+    }
 
-        if (await User.findOne({ email }))
-          return res.status(409).json({ error: 'Email taken.' });
+    if (await User.findOne({ email })) {
+      return res.status(409).json({ error: 'Email taken.' });
+    }
 
-        const hashed = await bcrypt.hash(password, 10);
-        const newUser = new User({ full_name, email, password: hashed, role: role || 'student' });
-        await newUser.save();
-
-        res.status(201).json({
-          id: newUser._id,
-          full_name: newUser.full_name,
-          email: newUser.email,
-          role: newUser.role
-        });
-      } catch (e) {
-        console.error('Registration error:', e);
-        res.status(500).json({ error: 'Server error creating user.' });
-      }
+    const hashed = await bcrypt.hash(password, 10);
+    const newUser = new User({
+      full_name,
+      email,
+      password: hashed,
+      role: role || 'student',
     });
+    await newUser.save();
+
+    res.status(201).json({
+      id: newUser._id,
+      full_name: newUser.full_name,
+      email: newUser.email,
+      role: newUser.role,
+    });
+  } catch (err) {
+    console.error('❌ Registration error:', err);
+    // return the real error message for debugging
+    res
+      .status(500)
+      .json({ error: err.message || String(err) });
+  }
+});
 
     // User login
     app.post('/api/auth/login', async (req, res) => {
