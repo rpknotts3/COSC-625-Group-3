@@ -1,17 +1,17 @@
+// mongoose.js
 const mongoose = require('mongoose');
-const bcrypt = require('bcrypt');
 
-const UserSchema = new mongoose.Schema({
-  full_name: { type: String, required: true, trim: true },
-  email:     { type: String, required: true, unique: true, lowercase: true, trim: true },
-  password:  { type: String, required: true },
-  role:      { type: String,
-               enum: ['student','organizer','admin'],
-               default: 'student' }
-}, { timestamps: true });
-
-UserSchema.methods.comparePassword = function (candidatePassword) {
-  return bcrypt.compare(candidatePassword, this.password);
+module.exports = async function connectMongoDB() {
+  const uri = process.env.MONGO_URI;
+  if (!uri) throw new Error('MONGO_URI not defined');
+  try {
+    await mongoose.connect(uri, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true
+    });
+    console.log('✅ MongoDB connection successful');
+  } catch (err) {
+    console.error('❌ MongoDB connection error:', err);
+    throw err;
+  }
 };
-
-module.exports = mongoose.model('User', UserSchema);
