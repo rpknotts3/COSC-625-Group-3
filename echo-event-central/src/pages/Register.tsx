@@ -41,6 +41,7 @@ const Register = () => {
     if (!validateForm()) return;
     setIsSubmitting(true);
     try {
+      // @ts-ignore
       await register(fullName, email, password, role);
     } catch (error) {
       console.error('Registration error:', error);
@@ -89,8 +90,8 @@ const Register = () => {
                   <Label htmlFor="student">Student</Label>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="professor" id="professor" />
-                  <Label htmlFor="professor">Professor</Label>
+                  <RadioGroupItem value="organizer" id="organizer" />
+                  <Label htmlFor="organizer">Professor</Label>
                 </div>
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="admin" id="admin" />

@@ -37,16 +37,23 @@ export const eventsAPI = {
   }) => api.get('/events/search', { params }),
 
   createEvent: (eventData: {
-    title: string,
-    description: string,
-    date: string,
-    location: string
+    event_name: string;
+    description: string;
+    event_date: string;   // ISO string (Date field in Mongo)
+    event_time: string;   // "HH:mm" 24-hour format; separate required field
+    location: string;
   }) => api.post('/events', eventData),
 
   approveEvent: (eventId: string) => api.patch(`/events/${eventId}/approve`),
   rejectEvent:  (eventId: string) => api.patch(`/events/${eventId}/reject`),
-  rsvpToEvent:  (eventId: string) => api.post(`/events/${eventId}/rsvp`),
-  cancelRsvp:   (eventId: string) => api.delete(`/events/${eventId}/rsvp`),
+  rsvpToEvent:  (eventId: string) => api.post(`/events/${eventId}/registrations`),
+  cancelRsvp:   (eventId: string) => api.delete(`/events/${eventId}/registrations`),
+};
+
+export const registrationsAPI = {
+  myRegistrations: () => api.get<string[]>('/registrations/mine'),
+  countForEvent:   (eventId: string) =>
+      api.get<{ count: number }>(`/events/${eventId}/registrations/count`),
 };
 
 export const decodeToken = (token: string): any => {

@@ -1,170 +1,178 @@
 // Project: echo-event-central/src/contexts/AuthContext.tsx
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  ReactNode
+} from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { authAPI, decodeToken } from '@/lib/api';
 
-// Types
+/* ------------------------------------------------------------------ */
+/*  Types & Contracts                                                  */
+/* ------------------------------------------------------------------ */
+
+type Role = 'student' | 'organizer' | 'admin';
+
 interface User {
   id: string;
   username: string;
-  role: 'student' | 'professor' | 'admin';
+  role: Role;
 }
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  login: (username: string, password: string) => Promise<void>;
-  register: (username: string, password: string, role: string) => Promise<void>;
+  /** e-mail + password because the backend expects `email` */
+  login: (email: string, password: string) => Promise<void>;
+  /**
+   * Full registration contract required by the Express API:
+   *  (full_name, email, password, role)
+   */
+  register: (
+      fullName: string,
+      email: string,
+      password: string,
+      role: Role
+  ) => Promise<void>;
   logout: () => void;
+  /* Role helpers */
   isAdmin: () => boolean;
   isProfessor: () => boolean;
   isStudent: () => boolean;
 }
 
-// Create context
+/* ------------------------------------------------------------------ */
+/*  Context setup                                                      */
+/* ------------------------------------------------------------------ */
+
 const AuthContext = createContext<AuthContextType | null>(null);
 
-// Provider component
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const navigate = useNavigate();
+  const navigate             = useNavigate();
 
-  // Check for existing token on load
+  /* -------------------------------------------------------------- */
+  /*  1.   Hydrate user from localStorage on first load             */
+  /* -------------------------------------------------------------- */
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (token) {
-      // Handle hardcoded admin token
+      /* Hard-coded demo logins ----------------------------------- */
       if (token === 'admin-mock-token') {
-        setUser({
-          id: 'admin-1',
-          username: 'admin',
-          role: 'admin'
-        });
+        setUser({ id: 'admin-1', username: 'admin', role: 'admin' });
         setLoading(false);
         return;
       }
-      
-      // Handle hardcoded student token
       if (token === 'student-mock-token') {
-        setUser({
-          id: 'student-1',
-          username: 'student',
-          role: 'student'
-        });
+        setUser({ id: 'student-1', username: 'student', role: 'student' });
         setLoading(false);
         return;
       }
-      
-      // Handle hardcoded professor token
       if (token === 'faculty-mock-token') {
-        setUser({
-          id: 'faculty-1',
-          username: 'faculty',
-          role: 'professor'
-        });
+        /* faculty == organizer in the API vocabulary */
+        setUser({ id: 'faculty-1', username: 'faculty', role: 'organizer' });
         setLoading(false);
         return;
       }
 
-      const decodedToken = decodeToken(token);
-      if (decodedToken && decodedToken.exp * 1000 > Date.now()) {
+      /* Standard JWT path --------------------------------------- */
+      const decoded = decodeToken(token);
+      if (decoded && decoded.exp * 1000 > Date.now()) {
         setUser({
-          id: decodedToken.id,
-          username: decodedToken.username,
-          role: decodedToken.role
+          id:       decoded.id,
+          username: decoded.username,
+          role:     decoded.role as Role
         });
       } else {
-        // Token expired
+        /* Expired or bad token */
         localStorage.removeItem('token');
       }
     }
     setLoading(false);
   }, []);
 
-  // Login function
-  const login = async (username: string, password: string) => {
+  /* -------------------------------------------------------------- */
+  /*  2.   Login                                                    */
+  /* -------------------------------------------------------------- */
+  const login = async (email: string, password: string) => {
     try {
       setLoading(true);
-      
-      // Mock login for demo users
-      if (username === 'admin' && password === 'admin123') {
+
+      /* Demo shortcuts ------------------------------------------ */
+      if (email === 'admin' && password === 'admin123') {
         localStorage.setItem('token', 'admin-mock-token');
-        setUser({
-          id: 'admin-1',
-          username: 'admin',
-          role: 'admin'
-        });
+        setUser({ id: 'admin-1', username: 'admin', role: 'admin' });
         toast.success('Login successful!');
         navigate('/');
         return;
       }
-      
-      if (username === 'student' && password === 'student123') {
+      if (email === 'student' && password === 'student123') {
         localStorage.setItem('token', 'student-mock-token');
-        setUser({
-          id: 'student-1',
-          username: 'student',
-          role: 'student'
-        });
+        setUser({ id: 'student-1', username: 'student', role: 'student' });
         toast.success('Login successful!');
         navigate('/');
         return;
       }
-      
-      if (username === 'faculty' && password === 'faculty123') {
+      if (email === 'faculty' && password === 'faculty123') {
         localStorage.setItem('token', 'faculty-mock-token');
-        setUser({
-          id: 'faculty-1',
-          username: 'faculty',
-          role: 'professor'
-        });
+        setUser({ id: 'faculty-1', username: 'faculty', role: 'organizer' });
         toast.success('Login successful!');
         navigate('/');
         return;
       }
-      
-      const response = await authAPI.login(username, password);
-      const { token } = response.data;
-      
-      localStorage.setItem('token', token);
-      
-      const decodedToken = decodeToken(token);
+
+      /* Real API call ------------------------------------------- */
+      const { data } = await authAPI.login(email, password);
+      localStorage.setItem('token', data.token);
+
+      const decoded = decodeToken(data.token);
       setUser({
-        id: decodedToken.id,
-        username: decodedToken.username,
-        role: decodedToken.role
+        id:       decoded.id,
+        username: decoded.username,
+        role:     decoded.role as Role
       });
-      
+
       toast.success('Login successful!');
       navigate('/');
-    } catch (error) {
+    } catch (err) {
       toast.error('Login failed. Please check your credentials.');
-      console.error('Login error:', error);
-      throw error;
+      console.error('Login error:', err);
+      throw err;
     } finally {
       setLoading(false);
     }
   };
 
-  // Register function
-  const register = async (username: string, password: string, role: string) => {
+  /* -------------------------------------------------------------- */
+  /*  3.   Register                                                 */
+  /* -------------------------------------------------------------- */
+  const register = async (
+      fullName: string,
+      email: string,
+      password: string,
+      role: Role
+  ) => {
     try {
       setLoading(true);
-      await authAPI.register(username, password, role);
+      await authAPI.register(fullName, email, password, role);
       toast.success('Registration successful! Please login.');
       navigate('/login');
-    } catch (error) {
+    } catch (err) {
       toast.error('Registration failed. Please try again.');
-      console.error('Register error:', error);
-      throw error;
+      console.error('Register error:', err);
+      throw err;
     } finally {
       setLoading(false);
     }
   };
 
-  // Logout function
+  /* -------------------------------------------------------------- */
+  /*  4.   Logout                                                   */
+  /* -------------------------------------------------------------- */
   const logout = () => {
     localStorage.removeItem('token');
     setUser(null);
@@ -172,34 +180,40 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     navigate('/login');
   };
 
-  // Role checking helpers
-  const isAdmin = () => user?.role === 'admin';
-  const isProfessor = () => user?.role === 'professor';
-  const isStudent = () => user?.role === 'student';
+  /* -------------------------------------------------------------- */
+  /*  5.   Role helpers                                             */
+  /* -------------------------------------------------------------- */
+  const isAdmin     = () => user?.role === 'admin';
+  const isProfessor = () => user?.role === 'organizer';
+  const isStudent   = () => user?.role === 'student';
 
+  /* -------------------------------------------------------------- */
+  /*  6.   Provider export                                          */
+  /* -------------------------------------------------------------- */
   return (
-    <AuthContext.Provider 
-      value={{ 
-        user, 
-        loading, 
-        login, 
-        register, 
-        logout,
-        isAdmin,
-        isProfessor,
-        isStudent
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
+      <AuthContext.Provider
+          value={{
+            user,
+            loading,
+            login,
+            register,
+            logout,
+            isAdmin,
+            isProfessor,
+            isStudent
+          }}
+      >
+        {children}
+      </AuthContext.Provider>
   );
 };
 
-// Custom hook to use auth context
+/* ------------------------------------------------------------------ */
+/*  7.   Hook                                                         */
+/* ------------------------------------------------------------------ */
+
 export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error('useAuth must be used within an AuthProvider');
+  return ctx;
 };

@@ -1,14 +1,26 @@
-
+// src/pages/CreateEvent.tsx
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Calendar as CalendarIcon } from 'lucide-react';
 import { Calendar } from '@/components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+
 import { format } from 'date-fns';
 import { useAuth } from '@/contexts/AuthContext';
 import { eventsAPI } from '@/lib/api';
@@ -16,180 +28,190 @@ import { toast } from 'sonner';
 import Navbar from '@/components/Navbar';
 
 const CreateEvent = () => {
+  /* ────────────────────────── Auth / navigation guards ───────────────────────── */
   const { user, isAdmin, isProfessor } = useAuth();
   const navigate = useNavigate();
-  
-  const [title, setTitle] = React.useState('');
-  const [description, setDescription] = React.useState('');
-  const [date, setDate] = React.useState<Date | undefined>(undefined);
-  const [location, setLocation] = React.useState('');
-  const [isSubmitting, setIsSubmitting] = React.useState(false);
-  const [errors, setErrors] = React.useState<{[key: string]: string}>({});
-  
+
   React.useEffect(() => {
-    // Redirect if user is not admin or professor
-    if (user && !(isAdmin() || isProfessor())) {
-      toast.error('You do not have permission to create events');
-      navigate('/');
-    } else if (!user) {
+    if (!user) {
       navigate('/login');
+      return;
+    }
+    if (!(isAdmin() || isProfessor())) {
+      toast.error('You do not have permission to create events.');
+      navigate('/');
     }
   }, [user, isAdmin, isProfessor, navigate]);
 
-  const validateForm = () => {
-    const newErrors: {[key: string]: string} = {};
-    
-    if (!title.trim()) {
-      newErrors.title = 'Title is required';
-    }
-    
-    if (!description.trim()) {
-      newErrors.description = 'Description is required';
-    }
-    
-    if (!date) {
-      newErrors.date = 'Date is required';
-    }
-    
-    if (!location.trim()) {
-      newErrors.location = 'Location is required';
-    }
-    
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+  /* ─────────────────────────────── Local state ──────────────────────────────── */
+  const [eventName, setEventName] = React.useState('');
+  const [description, setDescription] = React.useState('');
+  const [date, setDate] = React.useState<Date | undefined>();
+  const [time, setTime] = React.useState(''); // HH:mm
+  const [location, setLocation] = React.useState('');
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [errors, setErrors] = React.useState<Record<string, string>>({});
+
+  /* ─────────────────────────────── Validation ──────────────────────────────── */
+  const validate = () => {
+    const e: Record<string, string> = {};
+
+    if (!eventName.trim()) e.eventName = 'Title is required';
+    if (!description.trim()) e.description = 'Description is required';
+    if (!date) e.date = 'Date is required';
+    if (!time.trim()) e.time = 'Time is required';
+    if (!location.trim()) e.location = 'Location is required';
+
+    setErrors(e);
+    return Object.keys(e).length === 0;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!validateForm()) {
-      return;
-    }
-    
+  /* ───────────────────────────── Submit handler ────────────────────────────── */
+  const handleSubmit = async (evt: React.FormEvent) => {
+    evt.preventDefault();
+    if (!validate()) return;
+
     setIsSubmitting(true);
-    
     try {
       await eventsAPI.createEvent({
-        title,
+        event_name: eventName,
         description,
-        date: date!.toISOString(),
-        location
+        event_date: date!.toISOString(),
+        event_time: time, // "HH:mm"
+        location,
       });
-      
-      toast.success('Event created successfully! Waiting for approval.');
+
+      toast.success('Event created! Awaiting admin approval.');
       navigate('/');
-    } catch (error) {
+    } catch (err) {
+      console.error('Create event error:', err);
       toast.error('Failed to create event. Please try again.');
-      console.error('Create event error:', error);
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  /* ───────────────────────────────── Render ────────────────────────────────── */
   return (
-    <div className="min-h-screen flex flex-col">
-      <Navbar />
-      
-      <main className="flex-1 container mx-auto px-4 py-8">
-        <div className="max-w-2xl mx-auto">
-          <Card>
-            <CardHeader>
-              <CardTitle>Create a New Event</CardTitle>
-              <CardDescription>
-                Fill out the form below to create a new event. It will be reviewed by an administrator.
-              </CardDescription>
-            </CardHeader>
-            
-            <form onSubmit={handleSubmit}>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="title">Event Title</Label>
-                  <Input
-                    id="title"
-                    placeholder="Enter event title"
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                  />
-                  {errors.title && (
-                    <p className="text-destructive text-sm">{errors.title}</p>
-                  )}
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="description">Event Description</Label>
-                  <Textarea
-                    id="description"
-                    placeholder="Describe your event"
-                    rows={4}
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                  />
-                  {errors.description && (
-                    <p className="text-destructive text-sm">{errors.description}</p>
-                  )}
-                </div>
-                
-                <div className="space-y-2">
-                  <Label>Event Date</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className="w-full justify-start text-left font-normal"
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {date ? format(date, 'PPP') : <span>Select a date</span>}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0">
-                      <Calendar
-                        mode="single"
-                        selected={date}
-                        onSelect={setDate}
-                        initialFocus
-                        disabled={(date) => date < new Date()}
-                      />
-                    </PopoverContent>
-                  </Popover>
-                  {errors.date && (
-                    <p className="text-destructive text-sm">{errors.date}</p>
-                  )}
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="location">Event Location</Label>
-                  <Input
-                    id="location"
-                    placeholder="Enter event location"
-                    value={location}
-                    onChange={(e) => setLocation(e.target.value)}
-                  />
-                  {errors.location && (
-                    <p className="text-destructive text-sm">{errors.location}</p>
-                  )}
-                </div>
-              </CardContent>
-              
-              <CardFooter className="flex justify-between">
-                <Button 
-                  type="button" 
-                  variant="outline"
-                  onClick={() => navigate('/')}
-                >
-                  Cancel
-                </Button>
-                <Button 
-                  type="submit" 
-                  disabled={isSubmitting}
-                >
-                  {isSubmitting ? 'Creating...' : 'Create Event'}
-                </Button>
-              </CardFooter>
-            </form>
-          </Card>
-        </div>
-      </main>
-    </div>
+      <div className="min-h-screen flex flex-col">
+        <Navbar />
+
+        <main className="flex-1 container mx-auto px-4 py-8">
+          <div className="max-w-2xl mx-auto">
+            <Card>
+              <CardHeader>
+                <CardTitle>Create a New Event</CardTitle>
+                <CardDescription>
+                  Fill out the form below. Your event will be marked{' '}
+                  <strong>pending</strong> until an administrator approves it.
+                </CardDescription>
+              </CardHeader>
+
+              <form onSubmit={handleSubmit}>
+                <CardContent className="space-y-4">
+                  {/* Event Title */}
+                  <div className="space-y-2">
+                    <Label htmlFor="eventName">Event Title</Label>
+                    <Input
+                        id="eventName"
+                        placeholder="Enter event title"
+                        value={eventName}
+                        onChange={(e) => setEventName(e.target.value)}
+                    />
+                    {errors.eventName && (
+                        <p className="text-destructive text-sm">{errors.eventName}</p>
+                    )}
+                  </div>
+
+                  {/* Description */}
+                  <div className="space-y-2">
+                    <Label htmlFor="description">Event Description</Label>
+                    <Textarea
+                        id="description"
+                        placeholder="Describe your event"
+                        rows={4}
+                        value={description}
+                        onChange={(e) => setDescription(e.target.value)}
+                    />
+                    {errors.description && (
+                        <p className="text-destructive text-sm">{errors.description}</p>
+                    )}
+                  </div>
+
+                  {/* Date */}
+                  <div className="space-y-2">
+                    <Label>Event Date</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                            variant="outline"
+                            className="w-full justify-start text-left font-normal"
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {date ? format(date, 'PPP') : <span>Select a date</span>}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0">
+                        <Calendar
+                            mode="single"
+                            selected={date}
+                            onSelect={setDate}
+                            disabled={(d) => d < new Date()}
+                            initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    {errors.date && (
+                        <p className="text-destructive text-sm">{errors.date}</p>
+                    )}
+                  </div>
+
+                  {/* Time */}
+                  <div className="space-y-2">
+                    <Label htmlFor="time">Event Time (HH:mm)</Label>
+                    <Input
+                        id="time"
+                        type="time"
+                        value={time}
+                        onChange={(e) => setTime(e.target.value)}
+                    />
+                    {errors.time && (
+                        <p className="text-destructive text-sm">{errors.time}</p>
+                    )}
+                  </div>
+
+                  {/* Location */}
+                  <div className="space-y-2">
+                    <Label htmlFor="location">Event Location</Label>
+                    <Input
+                        id="location"
+                        placeholder="Enter event location"
+                        value={location}
+                        onChange={(e) => setLocation(e.target.value)}
+                    />
+                    {errors.location && (
+                        <p className="text-destructive text-sm">{errors.location}</p>
+                    )}
+                  </div>
+                </CardContent>
+
+                <CardFooter className="flex justify-between">
+                  <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => navigate('/')}
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={isSubmitting}>
+                    {isSubmitting ? 'Creating…' : 'Create Event'}
+                  </Button>
+                </CardFooter>
+              </form>
+            </Card>
+          </div>
+        </main>
+      </div>
   );
 };
 

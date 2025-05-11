@@ -150,21 +150,51 @@ const Attendance      = require('./models/Attendance');
     if (!u || !(await u.comparePassword(password)))
       return res.status(401).json({error:'Invalid credentials'});
 
-    const token = jwt.sign({ id:u._id, email:u.email, role:u.role }, JWT_SECRET, { expiresIn:'1h' });
+    const effectiveRole = u.role === 'professor' ? 'organizer' : u.role;
+    const token = jwt.sign(
+        { id: u._id, username: u.full_name, role: effectiveRole },
+        JWT_SECRET,
+        { expiresIn: '1h' }
+    );
     res.json({ token });
   });
 
   // List approved events
-  app.get('/api/events', async (_req,res)=>{
+  // GET /api/events   – approved events + accurate RSVP counts
+  app.get('/api/events', async (_req, res) => {
     try {
-      const ev = await Event.find({ status:'approved' })
-                            .sort({ event_date:1,event_time:1 });
+      const ev = await Event.aggregate([
+        { $match: { status: 'approved' } },
+
+        /* join registrations where registration.event === event._id (as string) */
+        {
+          $lookup: {
+            from: 'registrations',
+            let: { eid: { $toString: '$_id' } },   // ObjectId → string
+            pipeline: [
+              {
+                $match: {
+                  $expr: { $eq: ['$event', '$$eid'] } // compare strings
+                }
+              }
+            ],
+            as: 'regs'
+          }
+        },
+
+        { $addFields: { rsvp_count: { $size: '$regs' } } },
+        { $project: { regs: 0 } },
+        { $sort: { event_date: 1, event_time: 1 } }
+      ]);
+
       res.json(ev);
-    } catch(e){
+    } catch (e) {
       console.error(e);
-      res.status(500).json({error:'Fetching events failed'});
+      res.status(500).json({ error: 'Fetching events failed' });
     }
   });
+
+
 
   // Search events
   app.get('/api/events/search', async (req,res)=>{
@@ -257,6 +287,13 @@ const Attendance      = require('./models/Attendance');
     const r = await Registration.findOneAndDelete({ event:req.params.id, user:req.user.id });
     if (!r) return res.status(400).json({error:'Not registered'});
     res.json({ message:'Cancelled' });
+  });
+
+
+// GET /api/events/:id/registrations/count  →  { count: 42 }
+  app.get('/api/events/:id/registrations/count', async (req, res) => {
+    const count = await Registration.countDocuments({ event: req.params.id });
+    res.json({ count });
   });
 
   // Feedback
