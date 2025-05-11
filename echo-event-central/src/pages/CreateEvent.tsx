@@ -48,7 +48,7 @@ const CreateEvent = () => {
   const [description, setDescription] = React.useState('');
   const [date, setDate] = React.useState<Date | undefined>();
   const [time, setTime] = React.useState(''); // HH:mm
-  const [location, setLocation] = React.useState('');
+  const [venue_id, setVenue_id] = React.useState('');
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [errors, setErrors] = React.useState<Record<string, string>>({});
 
@@ -60,7 +60,7 @@ const CreateEvent = () => {
     if (!description.trim()) e.description = 'Description is required';
     if (!date) e.date = 'Date is required';
     if (!time.trim()) e.time = 'Time is required';
-    if (!location.trim()) e.location = 'Location is required';
+    if (!venue_id.trim()) e.location = 'Location is required';
 
     setErrors(e);
     return Object.keys(e).length === 0;
@@ -78,7 +78,7 @@ const CreateEvent = () => {
         description,
         event_date: date!.toISOString(),
         event_time: time, // "HH:mm"
-        location,
+        venue_id,
       });
 
       toast.success('Event created! Awaiting admin approval.');
@@ -186,8 +186,8 @@ const CreateEvent = () => {
                     <Input
                         id="location"
                         placeholder="Enter event location"
-                        value={location}
-                        onChange={(e) => setLocation(e.target.value)}
+                        value={venue_id}
+                        onChange={(e) => setVenue_id(e.target.value)}
                     />
                     {errors.location && (
                         <p className="text-destructive text-sm">{errors.location}</p>

@@ -1,4 +1,3 @@
-// src/components/EventList.tsx
 import React, { useState, useEffect, useCallback } from 'react';
 import { eventsAPI, registrationsAPI } from '@/lib/api';
 import EventCard from './EventCard';
@@ -9,8 +8,9 @@ interface Event {
   id: string;
   title: string;
   description: string;
-  date: string;     // ISO string
-  location: string;
+  date: string;     // ISO
+  time: string;     // HH:mm
+  venue: string; // room / address / link
   status: string;
   rsvpCount: number;
   userRsvp: boolean;
@@ -30,50 +30,47 @@ const EventList: React.FC<EventListProps> = ({ searchParams }) => {
   const [events, setEvents]   = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
 
-  /* ----------------------------- Fetch from API ------------------------------ */
   const fetchEvents = useCallback(async () => {
     setLoading(true);
     try {
-      /* 1. all approved events */
+      /* 1. approved events */
       const { data: raw } = await eventsAPI.getEvents();
 
-      /* 2. student’s existing registrations (may 401 if not student) */
+      /* 2. my registrations */
       let registered = new Set<string>();
       try {
-        const { data } = await registrationsAPI.myRegistrations(); // ['id','id',…]
+        const { data } = await registrationsAPI.myRegistrations();
         registered = new Set(data);
-      } catch {
-        /* not logged in or not student – ignore */
-      }
+      } catch {/* ignore */}
 
-      /* 3. map backend → card shape */
+      /* 3. map rows */
       const rows: Event[] = raw.map((e: any) => ({
         id:          e._id,
         title:       e.event_name,
         description: e.description,
         date:        e.event_date,
-        location:    e.location,
+        time:        e.event_time,
+        venue:       e.venue_id || e.venue || e.location || '',
         status:      e.status,
         rsvpCount:   e.rsvp_count ?? 0,
         userRsvp:    registered.has(e._id),
       }));
 
-      /* 4. client-side filtering (same as before) */
+      /* 4. filters */
       let filtered = [...rows];
-
       if (searchParams && Object.values(searchParams).some(Boolean)) {
         if (searchParams.keyword) {
           const kw = searchParams.keyword.toLowerCase();
           filtered = filtered.filter(ev =>
               ev.title.toLowerCase().includes(kw) ||
               ev.description.toLowerCase().includes(kw) ||
-              ev.location.toLowerCase().includes(kw)
+              ev.venue.toLowerCase().includes(kw)
           );
         }
         if (searchParams.location) {
           const loc = searchParams.location.toLowerCase();
           filtered = filtered.filter(ev =>
-              ev.location.toLowerCase().includes(loc)
+              ev.venue.toLowerCase().includes(loc)
           );
         }
         if (searchParams.startDate) {
@@ -88,19 +85,15 @@ const EventList: React.FC<EventListProps> = ({ searchParams }) => {
 
       setEvents(filtered);
     } catch (err) {
-      console.error('Error fetching events:', err);
-      toast.error('Failed to load events. Please try again later.');
+      console.error(err);
+      toast.error('Failed to load events.');
     } finally {
       setLoading(false);
     }
   }, [searchParams]);
 
-  /* refetch on mount & whenever search params change */
-  useEffect(() => {
-    fetchEvents();
-  }, [fetchEvents]);
+  useEffect(() => { fetchEvents(); }, [fetchEvents]);
 
-  /* ------------------------------ UI states ---------------------------------- */
   if (loading) {
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -113,20 +106,15 @@ const EventList: React.FC<EventListProps> = ({ searchParams }) => {
     );
   }
 
-  if (events.length === 0) {
+  if (!events.length) {
     return (
         <div className="text-center py-12">
-          <h3 className="text-xl font-medium text-muted-foreground">
-            No events found
-          </h3>
-          <p className="text-muted-foreground mt-2">
-            Try adjusting your search criteria
-          </p>
+          <h3 className="text-xl font-medium text-muted-foreground">No events found</h3>
+          <p className="text-muted-foreground mt-2">Try adjusting your search criteria</p>
         </div>
     );
   }
 
-  /* -------------------------------- Render ----------------------------------- */
   return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {events.map(ev => (

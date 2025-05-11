@@ -41,7 +41,7 @@ export const eventsAPI = {
     description: string;
     event_date: string;   // ISO string (Date field in Mongo)
     event_time: string;   // "HH:mm" 24-hour format; separate required field
-    location: string;
+    venue_id: string;
   }) => api.post('/events', eventData),
 
   approveEvent: (eventId: string) => api.patch(`/events/${eventId}/approve`),

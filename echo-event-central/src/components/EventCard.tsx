@@ -1,4 +1,3 @@
-// src/components/EventCard.tsx
 import React, { useEffect, useState } from 'react';
 import {
   Card,
@@ -9,7 +8,7 @@ import {
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, MapPin, Users } from 'lucide-react';
+import { Calendar, Clock, MapPin, Users } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { eventsAPI, registrationsAPI } from '@/lib/api';
 import { toast } from 'sonner';
@@ -20,7 +19,8 @@ interface EventCardProps {
     title: string;
     description: string;
     date: string;
-    location: string;
+    time: string;
+    venue: string;          // plain text like “Library”
     status: string;
     rsvpCount: number;
     userRsvp: boolean;
@@ -30,44 +30,18 @@ interface EventCardProps {
 
 const EventCard: React.FC<EventCardProps> = ({ event, onRsvpChange }) => {
   const { user, isStudent } = useAuth();
-  const [busy, setBusy]     = useState(false);
-  const [count, setCount]   = useState(event.rsvpCount);
+  const [busy, setBusy]   = useState(false);
+  const [rsvp, setRsvp]   = useState(event.userRsvp);
+  const [count, setCount] = useState(event.rsvpCount);
 
-  /* ------------ pull fresh count once component mounts -------------- */
+  /* pull live count once on mount */
   useEffect(() => {
-    let mounted = true;
     registrationsAPI
         .countForEvent(event.id)
-        .then(({ data }) => mounted && setCount(data.count))
-        .catch(() => {/* ignore */});
-    return () => { mounted = false; };
+        .then(({ data }) => setCount(data.count))
+        .catch(() => {});
   }, [event.id]);
 
-  /* ----------------------------- RSVP handler ----------------------- */
-  const handleRsvp = async () => {
-    if (!user) {
-      toast.error('You must be logged in to RSVP');
-      return;
-    }
-    setBusy(true);
-    try {
-      if (event.userRsvp) {
-        await eventsAPI.cancelRsvp(event.id);
-        toast.success('RSVP canceled');
-      } else {
-        await eventsAPI.rsvpToEvent(event.id);
-        toast.success('RSVP confirmed');
-      }
-      onRsvpChange();
-    } catch (err) {
-      console.error(err);
-      toast.error('Failed to update RSVP');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  /* ----------------------------- Helpers ---------------------------- */
   const formattedDate = new Date(event.date).toLocaleDateString('en-US', {
     weekday: 'short',
     month: 'short',
@@ -75,15 +49,59 @@ const EventCard: React.FC<EventCardProps> = ({ event, onRsvpChange }) => {
     year: 'numeric',
   });
 
-  /* ----------------------------- Render ----------------------------- */
+  const refreshCount = async () => {
+    const { data } = await registrationsAPI.countForEvent(event.id);
+    setCount(data.count);
+  };
+
+  const handleRsvp = async () => {
+    if (!user) {
+      toast.error('You must be logged in to RSVP');
+      return;
+    }
+    setBusy(true);
+    try {
+      if (rsvp) {
+        await eventsAPI.cancelRsvp(event.id);
+        toast.success('RSVP canceled');
+        setRsvp(false);
+      } else {
+        await eventsAPI.rsvpToEvent(event.id);
+        toast.success('RSVP confirmed');
+        setRsvp(true);
+      }
+      await refreshCount();
+      onRsvpChange();
+    } catch (err: any) {
+      const msg = err?.response?.data?.error ?? 'Failed to update RSVP';
+      /* ───── sync local flag if we get a known 400 from the backend ───── */
+      if (err?.response?.status === 400) {
+        if (msg === 'Already registered') {
+          setRsvp(true);
+          await refreshCount();
+        } else if (msg === 'Not registered') {
+          setRsvp(false);
+          await refreshCount();
+        }
+      }
+      toast.error(msg);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+
+  /* accept only “true” updates from parent to avoid flicker */
+  useEffect(() => {
+    if (event.userRsvp && !rsvp) setRsvp(true);
+  }, [event.userRsvp, rsvp]);
+
   return (
       <Card className="event-card overflow-hidden">
         <CardHeader className="pb-2">
           <div className="flex justify-between items-start">
             <CardTitle className="text-xl font-bold">{event.title}</CardTitle>
-            <Badge
-                variant={event.status === 'approved' ? 'default' : 'secondary'}
-            >
+            <Badge variant={event.status === 'approved' ? 'default' : 'secondary'}>
               {event.status}
             </Badge>
           </div>
@@ -99,8 +117,13 @@ const EventCard: React.FC<EventCardProps> = ({ event, onRsvpChange }) => {
             </div>
 
             <div className="flex items-center">
+              <Clock className="h-4 w-4 mr-2 text-muted-foreground" />
+              <span>{event.time}</span>
+            </div>
+
+            <div className="flex items-center">
               <MapPin className="h-4 w-4 mr-2 text-muted-foreground" />
-              <span>{event.location}</span>
+              <span>{event.venue || 'Location TBA'}</span>
             </div>
 
             <div className="flex items-center">
@@ -114,15 +137,11 @@ const EventCard: React.FC<EventCardProps> = ({ event, onRsvpChange }) => {
           {isStudent() && event.status === 'approved' && (
               <Button
                   onClick={handleRsvp}
-                  variant={event.userRsvp ? 'destructive' : 'default'}
+                  variant={rsvp ? 'destructive' : 'default'}
                   disabled={busy}
                   className="w-full"
               >
-                {busy
-                    ? 'Processing…'
-                    : event.userRsvp
-                        ? 'Cancel RSVP'
-                        : 'RSVP to Event'}
+                {busy ? 'Processing…' : rsvp ? 'Cancel RSVP' : 'RSVP to Event'}
               </Button>
           )}
         </CardFooter>

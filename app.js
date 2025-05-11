@@ -34,15 +34,26 @@ const Attendance      = require('./models/Attendance');
   const JWT_SECRET = process.env.JWT_SECRET || 'supersecretlocalkey';
 
   // ─── Middleware ────────────────────────────────────────────────────────
-  app.use(helmet());
-  app.use(rateLimit({
-    windowMs:        15*60*1000,
-    max:             100,
-    standardHeaders: true,
-    legacyHeaders:   false
-  }));
-  app.use(express.json());
   app.use(cors());
+  app.use(helmet());
+  app.use(
+      rateLimit({
+        windowMs:        60 * 10000,
+        max:             100,
+        standardHeaders: true,
+        legacyHeaders:   false,
+
+        /* NEW → don’t count or block pre-flight requests */
+        skip: (req) => req.method === 'OPTIONS',
+
+        /* optional: still return CORS header on 429 */
+        handler: (req, res) => {
+          res.set('Access-Control-Allow-Origin', 'http://localhost:8082');
+          res.status(429).json({ error: 'Too many requests' });
+        },
+      })
+  );
+  app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
 
   // ─── Static file upload dir ─────────────────────────────────────────────
