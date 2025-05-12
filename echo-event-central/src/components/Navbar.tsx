@@ -14,7 +14,7 @@ const Navbar = () => {
         <div className="flex items-center justify-between">
           <Link to="/" className="flex items-center space-x-2">
             <Calendar className="h-6 w-6 text-[#0e3256]" />
-            <span className="text-xl font-bold text-[#0e3256]">Campus Event Management System</span>
+            <span className="text-xl font-bold text-[#0e3256]">College Event Management System</span>
           </Link>
           
           <div className="flex items-center space-x-4">

@@ -34,7 +34,19 @@ const Attendance      = require('./models/Attendance');
   const JWT_SECRET = process.env.JWT_SECRET || 'supersecretlocalkey';
 
   // ─── Middleware ────────────────────────────────────────────────────────
-  app.use(cors());
+  const allowedOrigins = ['http://localhost:8080', 'http://localhost:8081', 'http://localhost:8082', 'http://localhost:8083', 'http://localhost:8084'];
+
+  app.use(cors({
+    origin: function (origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
+    credentials: true,
+  }));
+
   app.use(helmet());
   app.use(
       rateLimit({
@@ -48,7 +60,7 @@ const Attendance      = require('./models/Attendance');
 
         /* optional: still return CORS header on 429 */
         handler: (req, res) => {
-          res.set('Access-Control-Allow-Origin', 'http://localhost:8082');
+          res.set('Access-Control-Allow-Origin', 'http://localhost:8080');
           res.status(429).json({ error: 'Too many requests' });
         },
       })
