@@ -29,7 +29,7 @@ interface EventCardProps {
 }
 
 const EventCard: React.FC<EventCardProps> = ({ event, onRsvpChange }) => {
-  const { user, isStudent } = useAuth();
+  const { user, isStudent, isAdmin } = useAuth();           /* ← added isAdmin */
   const [busy, setBusy]   = useState(false);
   const [rsvp, setRsvp]   = useState(event.userRsvp);
   const [count, setCount] = useState(event.rsvpCount);
@@ -63,33 +63,21 @@ const EventCard: React.FC<EventCardProps> = ({ event, onRsvpChange }) => {
     try {
       if (rsvp) {
         await eventsAPI.cancelRsvp(event.id);
-        toast.success('RSVP canceled');
         setRsvp(false);
+        toast.success('RSVP canceled');
       } else {
         await eventsAPI.rsvpToEvent(event.id);
-        toast.success('RSVP confirmed');
         setRsvp(true);
+        toast.success('RSVP confirmed');
       }
       await refreshCount();
       onRsvpChange();
     } catch (err: any) {
-      const msg = err?.response?.data?.error ?? 'Failed to update RSVP';
-      /* ───── sync local flag if we get a known 400 from the backend ───── */
-      if (err?.response?.status === 400) {
-        if (msg === 'Already registered') {
-          setRsvp(true);
-          await refreshCount();
-        } else if (msg === 'Not registered') {
-          setRsvp(false);
-          await refreshCount();
-        }
-      }
-      toast.error(msg);
+      toast.error(err?.response?.data?.error ?? 'Failed to update RSVP');
     } finally {
       setBusy(false);
     }
   };
-
 
   /* accept only “true” updates from parent to avoid flicker */
   useEffect(() => {
@@ -101,9 +89,11 @@ const EventCard: React.FC<EventCardProps> = ({ event, onRsvpChange }) => {
         <CardHeader className="pb-2">
           <div className="flex justify-between items-start">
             <CardTitle className="text-xl font-bold">{event.title}</CardTitle>
-            <Badge variant={event.status === 'approved' ? 'default' : 'secondary'}>
-              {event.status}
-            </Badge>
+
+            {/* Badge only for admins when status is approved */}
+            {event.status === 'approved' && isAdmin() && (
+                <Badge variant="default">approved</Badge>
+            )}
           </div>
         </CardHeader>
 

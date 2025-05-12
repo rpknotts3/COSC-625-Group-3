@@ -36,13 +36,14 @@ export const eventsAPI = {
     endDate?: string
   }) => api.get('/events/search', { params }),
 
-  createEvent: (eventData: {
+  createEvent: (data: {
     event_name: string;
     description: string;
-    event_date: string;   // ISO string (Date field in Mongo)
-    event_time: string;   // "HH:mm" 24-hour format; separate required field
-    venue_id: string;
-  }) => api.post('/events', eventData),
+    event_date: string;
+    event_time: string;
+    venue: string;
+  }) => api.post('/events', data),
+
 
   approveEvent: (eventId: string) => api.patch(`/events/${eventId}/approve`),
   rejectEvent:  (eventId: string) => api.patch(`/events/${eventId}/reject`),

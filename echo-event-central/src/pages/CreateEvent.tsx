@@ -20,7 +20,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
-
 import { format } from 'date-fns';
 import { useAuth } from '@/contexts/AuthContext';
 import { eventsAPI } from '@/lib/api';
@@ -28,7 +27,7 @@ import { toast } from 'sonner';
 import Navbar from '@/components/Navbar';
 
 const CreateEvent = () => {
-  /* ────────────────────────── Auth / navigation guards ───────────────────────── */
+  /* ─── auth guard ─── */
   const { user, isAdmin, isProfessor } = useAuth();
   const navigate = useNavigate();
 
@@ -43,30 +42,28 @@ const CreateEvent = () => {
     }
   }, [user, isAdmin, isProfessor, navigate]);
 
-  /* ─────────────────────────────── Local state ──────────────────────────────── */
+  /* ─── local state ─── */
   const [eventName, setEventName] = React.useState('');
   const [description, setDescription] = React.useState('');
   const [date, setDate] = React.useState<Date | undefined>();
-  const [time, setTime] = React.useState(''); // HH:mm
-  const [venue_id, setVenue_id] = React.useState('');
+  const [time, setTime] = React.useState('');   // HH:mm
+  const [venue, setVenue] = React.useState(''); // <─ plain-text location
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [errors, setErrors] = React.useState<Record<string, string>>({});
 
-  /* ─────────────────────────────── Validation ──────────────────────────────── */
+  /* ─── validation ─── */
   const validate = () => {
     const e: Record<string, string> = {};
-
     if (!eventName.trim()) e.eventName = 'Title is required';
     if (!description.trim()) e.description = 'Description is required';
     if (!date) e.date = 'Date is required';
     if (!time.trim()) e.time = 'Time is required';
-    if (!venue_id.trim()) e.location = 'Location is required';
-
+    if (!venue.trim()) e.location = 'Location is required';
     setErrors(e);
     return Object.keys(e).length === 0;
   };
 
-  /* ───────────────────────────── Submit handler ────────────────────────────── */
+  /* ─── submit ─── */
   const handleSubmit = async (evt: React.FormEvent) => {
     evt.preventDefault();
     if (!validate()) return;
@@ -77,10 +74,9 @@ const CreateEvent = () => {
         event_name: eventName,
         description,
         event_date: date!.toISOString(),
-        event_time: time, // "HH:mm"
-        venue_id,
+        event_time: time,  // "HH:mm"
+        venue,             // <─ send correct key
       });
-
       toast.success('Event created! Awaiting admin approval.');
       navigate('/');
     } catch (err) {
@@ -91,7 +87,7 @@ const CreateEvent = () => {
     }
   };
 
-  /* ───────────────────────────────── Render ────────────────────────────────── */
+  /* ─── render ─── */
   return (
       <div className="min-h-screen flex flex-col">
         <Navbar />
@@ -109,46 +105,43 @@ const CreateEvent = () => {
 
               <form onSubmit={handleSubmit}>
                 <CardContent className="space-y-4">
-                  {/* Event Title */}
+                  {/* title */}
                   <div className="space-y-2">
                     <Label htmlFor="eventName">Event Title</Label>
                     <Input
                         id="eventName"
-                        placeholder="Enter event title"
                         value={eventName}
                         onChange={(e) => setEventName(e.target.value)}
+                        placeholder="Enter event title"
                     />
                     {errors.eventName && (
                         <p className="text-destructive text-sm">{errors.eventName}</p>
                     )}
                   </div>
 
-                  {/* Description */}
+                  {/* description */}
                   <div className="space-y-2">
                     <Label htmlFor="description">Event Description</Label>
                     <Textarea
                         id="description"
-                        placeholder="Describe your event"
                         rows={4}
                         value={description}
                         onChange={(e) => setDescription(e.target.value)}
+                        placeholder="Describe your event"
                     />
                     {errors.description && (
                         <p className="text-destructive text-sm">{errors.description}</p>
                     )}
                   </div>
 
-                  {/* Date */}
+                  {/* date */}
                   <div className="space-y-2">
                     <Label>Event Date</Label>
                     <Popover>
                       <PopoverTrigger asChild>
-                        <Button
-                            variant="outline"
-                            className="w-full justify-start text-left font-normal"
-                        >
+                        <Button variant="outline" className="w-full justify-start">
                           <CalendarIcon className="mr-2 h-4 w-4" />
-                          {date ? format(date, 'PPP') : <span>Select a date</span>}
+                          {date ? format(date, 'PPP') : 'Select a date'}
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0">
@@ -166,7 +159,7 @@ const CreateEvent = () => {
                     )}
                   </div>
 
-                  {/* Time */}
+                  {/* time */}
                   <div className="space-y-2">
                     <Label htmlFor="time">Event Time (HH:mm)</Label>
                     <Input
@@ -180,14 +173,14 @@ const CreateEvent = () => {
                     )}
                   </div>
 
-                  {/* Location */}
+                  {/* venue */}
                   <div className="space-y-2">
-                    <Label htmlFor="location">Event Location</Label>
+                    <Label htmlFor="venue">Event Location</Label>
                     <Input
-                        id="location"
+                        id="venue"
+                        value={venue}
+                        onChange={(e) => setVenue(e.target.value)}
                         placeholder="Enter event location"
-                        value={venue_id}
-                        onChange={(e) => setVenue_id(e.target.value)}
                     />
                     {errors.location && (
                         <p className="text-destructive text-sm">{errors.location}</p>
@@ -196,11 +189,7 @@ const CreateEvent = () => {
                 </CardContent>
 
                 <CardFooter className="flex justify-between">
-                  <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => navigate('/')}
-                  >
+                  <Button type="button" variant="outline" onClick={() => navigate('/')}>
                     Cancel
                   </Button>
                   <Button type="submit" disabled={isSubmitting}>
