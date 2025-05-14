@@ -15,7 +15,6 @@ import AdminPanel from "./pages/AdminPanel";
 import NotFound from "./pages/NotFound";
 import AdminEvents      from './pages/AdminEvents';
 import AdminEventEdit   from './pages/AdminEventEdit';
-import EventList from "@/components/EventList.tsx";
 
 const queryClient = new QueryClient();
 

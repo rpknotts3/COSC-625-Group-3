@@ -1,9 +1,7 @@
 
 import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
-import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+
 
 interface DashboardStatsProps {
   totalEvents: number;
@@ -25,12 +23,8 @@ interface AdminDashboardProps {
   events: EventRow[];
 }
 
-const AdminDashboard: React.FC<AdminDashboardProps> = ({ stats, events }) => {
-  // Prepare data for the bar chart
-  const chartData = events.map(event => ({
-    name: event.title.length > 15 ? event.title.substring(0, 15) + '...' : event.title,
-    attendees: event.attendees
-  }));
+const AdminDashboard: React.FC<AdminDashboardProps> = ({ stats }) => {
+
 
   return (
     <div className="p-6 space-y-6">
