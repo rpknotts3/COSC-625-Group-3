@@ -1,8 +1,6 @@
 // src/lib/api.ts
 import axios from 'axios';
 
-const API_URL = 'http://localhost:3000/api'; // Updated to local dev backend
-
 const api = axios.create({
     baseURL: `${window.location.protocol}//${window.location.hostname}:3000/api`,
     withCredentials: true,
