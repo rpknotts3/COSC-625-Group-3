@@ -4,7 +4,7 @@ require('dotenv').config();
 const express       = require('express');
 const cors          = require('cors');
 const helmet        = require('helmet');
-const rateLimit     = require('express-rate-limit');
+//const rateLimit     = require('express-rate-limit');
 const bcrypt        = require('bcrypt');
 const jwt           = require('jsonwebtoken');
 const nodemailer    = require('nodemailer');
@@ -33,29 +33,29 @@ const Attendance      = require('./models/Attendance');
   const PORT       = process.env.PORT || 3000;
   const JWT_SECRET = process.env.JWT_SECRET || 'supersecretlocalkey';
 
-  // ─── Middleware ────────────────────────────────────────────────────────
-  const allowedOrigins = ['http://localhost:8080', 'http://localhost:8081', 'http://localhost:8082', 'http://localhost:8083', 'http://localhost:8084'];
 
-  app.use(cors({
-    origin: function (origin, callback) {
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error('Not allowed by CORS'));
-      }
-    },
-    credentials: true,
-  }));
+    app.use((req, res, next) => {
+        res.set('X-RateLimit-Bypass', 'test');
+        next();
+    });
+
+    app.use(
+        cors({
+            origin: (origin, cb) => cb(null, true),
+            credentials: true,
+        })
+    );
 
  app.use(helmet());
-  app.use(
-      rateLimit({
-        windowMs:        60 * 10000,
-        max:             100,
-        standardHeaders: true,
-        legacyHeaders:   false,
-      })
-  );
+  // app.use(
+  //     rateLimit({
+  //       windowMs:        60 * 10000,
+  //       max:             100,
+  //       standardHeaders: true,
+  //       legacyHeaders:   false,
+  //
+  //     })
+  // );
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
 
@@ -64,15 +64,6 @@ const Attendance      = require('./models/Attendance');
   if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
   app.use('/files', express.static(uploadDir));
 
-  // ─── Mail transport ────────────────────────────────────────────────────
-  const mailTransport = process.env.SMTP_HOST
-    ? nodemailer.createTransport({
-        host:   process.env.SMTP_HOST,
-        port:   +process.env.SMTP_PORT || 587,
-        secure: false,
-        auth:   { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
-      })
-    : null;
 
   // ─── Multer setup ──────────────────────────────────────────────────────
   const storage = multer.diskStorage({
@@ -113,26 +104,43 @@ const Attendance      = require('./models/Attendance');
       ? next()
       : res.status(403).json({error:'Organizer or admin only'});
 
-  // ─── Notification helper ──────────────────────────────────────────────
-  async function dispatchEventNotification(eventId, subject, body) {
-    // send to students (subscribers) …
-    const students = await User.find({ role:'student' });
-    if (!students.length) return;
-    await Notification.insertMany(
-      students.map(u=>({ user:u._id, message:body, type:'event_update' }))
-    );
-    if (mailTransport) {
-      try {
-        await mailTransport.sendMail({
-          from:    process.env.SMTP_FROM||'no-reply@cems.local',
-          bcc:     students.map(u=>u.email),
-          subject, text:body
+  // ─── Notification helpers ──────────────────────────────────────────────
+    /**
+     * Notify the single organizer who created the event.
+     * @param {object} eventDoc – a full Event mongoose document
+     * @param {string} body     – message shown inside the app
+     */
+    async function notifyOrganizer(eventDoc, body) {
+        await Notification.create({
+            user:    eventDoc.organizer_id,  // one target only
+            message: body,
+            type:    'event_update',
         });
-      } catch(e){ console.error('❌ email:',e) }
     }
-  }
 
-  // ─── Routes ───────────────────────────────────────────────────────────
+    /**
+     * Notify every student currently registered to the event.
+     * @param {string|object} eventId
+     * @param {string} body
+     */
+    async function notifyRegistrants(eventId, body) {
+        const regs     = await Registration.find({ event: eventId }).select('user');
+        const userIds  = [...new Set(regs.map(r => r.user.toString()))];
+
+        if (userIds.length) {
+            await Notification.insertMany(
+                userIds.map(uid => ({
+                    user: uid,
+                    message: body,
+                    type: 'event_update',
+                }))
+            );
+        }
+    }
+
+
+
+    // ─── Routes ───────────────────────────────────────────────────────────
 
   // Health
   app.get('/api/ping', (_r, res) => res.json({ message:'CEMS up' }));
@@ -260,27 +268,63 @@ const Attendance      = require('./models/Attendance');
   });
 
   // Approve / Reject
-  app.patch('/api/events/:id/approve', requireAuth, requireAdmin, async (req,res)=>{
-    const ev = await Event.findByIdAndUpdate(req.params.id, { status:'approved' }, { new:true });
-    if (!ev) return res.status(404).json({error:'Not found'});
-    await dispatchEventNotification(ev._id,'Event Approved',`"${ev.event_name}" approved`);
-    res.json({ message:'Approved' });
-  });
-  app.patch('/api/events/:id/reject', requireAuth, requireAdmin, async (req,res)=>{
-    const ev = await Event.findByIdAndUpdate(req.params.id, { status:'rejected' }, { new:true });
-    if (!ev) return res.status(404).json({error:'Not found'});
-    res.json({ message:'Rejected' });
-  });
+    app.patch('/api/events/:id/approve', requireAuth, requireAdmin, async (req, res) => {
+        const ev = await Event.findByIdAndUpdate(
+            req.params.id,
+            { status: 'approved' },
+            { new: true }
+        );
+        if (!ev) return res.status(404).json({ error: 'Not found' });
 
-  // Update event
-  app.patch('/api/events/:id', requireAuth, requireOrganizerOrAdmin, async (req,res)=>{
-    const ev = await Event.findByIdAndUpdate(req.params.id, req.body, { new:true });
-    if (!ev) return res.status(404).json({error:'Not found'});
-    await dispatchEventNotification(ev._id,'Event Updated',`"${ev.event_name}" updated`);
-    res.json({ event:ev });
-  });
+        /* NEW → notify just the organizer */
+        await notifyOrganizer(ev, `"${ev.event_name}" has been approved.`);
 
-  // Resources
+        res.json({ message: 'Approved' });
+    });
+
+    app.patch('/api/events/:id/reject', requireAuth, requireAdmin, async (req, res) => {
+        const ev = await Event.findByIdAndUpdate(
+            req.params.id,
+            { status: 'rejected' },
+            { new: true }
+        );
+        if (!ev) return res.status(404).json({ error: 'Not found' });
+
+        /* NEW → notify just the organizer */
+        await notifyOrganizer(ev, `"${ev.event_name}" has been rejected. Please contact an administrator if you believe this was a mistake.`);
+
+        res.json({ message: 'Rejected' });
+    });
+
+    // PATCH  /api/events/:id   ── update an event ─────────────────────────────
+    app.patch(
+        '/api/events/:id',
+        requireAuth,
+        requireOrganizerOrAdmin,
+        async (req, res) => {
+            const ev = await Event.findByIdAndUpdate(
+                req.params.id,
+                req.body,
+                { new: true }
+            );
+            if (!ev) return res.status(404).json({ error: 'Not found' });
+
+            /* 1️⃣ notify students already registered */
+            await notifyRegistrants(ev._id, `"${ev.event_name}" was updated`);
+
+            /* 2️⃣ ALSO notify the person who created the event */
+            await Notification.create({
+                user: ev.organizer_id,
+                message: `"${ev.event_name}" was updated by an administrator`,
+                type: 'event_update',
+            });
+
+            res.json({ event: ev });
+        }
+    );
+
+
+    // Resources
   app.post('/api/events/:id/resources', requireAuth, requireOrganizerOrAdmin, upload.single('file'), async (req,res)=>{
     if(!req.file) return res.status(400).json({error:'File required'});
     const r = new Resource({

@@ -4,9 +4,11 @@ import axios from 'axios';
 const API_URL = 'http://localhost:3000/api'; // Updated to local dev backend
 
 const api = axios.create({
-  baseURL: API_URL,
-  headers: { 'Content-Type': 'application/json' },
+    baseURL: `${window.location.protocol}//${window.location.hostname}:3000/api`,
+    withCredentials: true,
 });
+
+
 
 api.interceptors.request.use(
   (config) => {
