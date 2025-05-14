@@ -7,6 +7,11 @@ const EventSchema = new mongoose.Schema({
   event_date:   { type: Date,   required: true },
   event_time:   { type: String, required: true }, // or Date if you prefer
   venue:     { type: String, required: true },
+  priority: {
+    type: String,
+    enum: ['normal','low','high','mandatory'],
+    default: 'normal'
+  },
   category_id:  { type: mongoose.Schema.Types.ObjectId, ref: 'Category', default: null },
   course_id:    { type: mongoose.Schema.Types.ObjectId, ref: 'Course',   default: null },
   organizer_id: { type: mongoose.Schema.Types.ObjectId, ref: 'User',     required: true },

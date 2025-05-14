@@ -47,22 +47,13 @@ const Attendance      = require('./models/Attendance');
     credentials: true,
   }));
 
-  app.use(helmet());
+ app.use(helmet());
   app.use(
       rateLimit({
         windowMs:        60 * 10000,
         max:             100,
         standardHeaders: true,
         legacyHeaders:   false,
-
-        /* NEW → don’t count or block pre-flight requests */
-        skip: (req) => req.method === 'OPTIONS',
-
-        /* optional: still return CORS header on 429 */
-        handler: (req, res) => {
-          res.set('Access-Control-Allow-Origin', 'http://localhost:8080');
-          res.status(429).json({ error: 'Too many requests' });
-        },
       })
   );
   app.use(express.json());
@@ -180,6 +171,12 @@ const Attendance      = require('./models/Attendance');
         { expiresIn: '1h' }
     );
     res.json({ token });
+  });
+
+  //get number of users
+  app.get('/api/users/count', requireAuth, requireAdmin, async (_req, res) => {
+    const count = await User.countDocuments();
+    res.json({ count });
   });
 
   // List approved events

@@ -22,6 +22,7 @@ interface EventCardProps {
     time: string;
     venue: string;          // plain text like “Library”
     status: string;
+    priority: 'normal' | 'low' | 'high' | 'mandatory';
     rsvpCount: number;
     userRsvp: boolean;
   };
@@ -52,6 +53,16 @@ const EventCard: React.FC<EventCardProps> = ({ event, onRsvpChange }) => {
   const refreshCount = async () => {
     const { data } = await registrationsAPI.countForEvent(event.id);
     setCount(data.count);
+  };
+
+
+  const priorityLabel = (p: 'normal'|'low'|'high'|'mandatory') => {
+    switch (p) {
+      case 'low':        return 'Low priority';
+      case 'high':       return 'High priority';
+      case 'mandatory':  return 'Attendance Mandatory';       // reads well without “priority”
+      default:           return '';
+    }
   };
 
   const handleRsvp = async () => {
@@ -88,12 +99,38 @@ const EventCard: React.FC<EventCardProps> = ({ event, onRsvpChange }) => {
       <Card className="event-card overflow-hidden">
         <CardHeader className="pb-2">
           <div className="flex justify-between items-start">
+            {/* title (unchanged) */}
             <CardTitle className="text-xl font-bold">{event.title}</CardTitle>
 
-            {/* Badge only for admins when status is approved */}
-            {event.status === 'approved' && isAdmin() && (
-                <Badge variant="default">approved</Badge>
-            )}
+            {/* ───────── Right-hand badge column ───────── */}
+            <div className="flex flex-col items-end space-y-1">
+              {/* only admins see the approval badge */}
+              {isAdmin() && event.status === 'approved' && (
+                  <Badge variant="default">approved</Badge>
+              )}
+
+              {/* priority badge shown to everyone if not "normal" */}
+              {event.priority !== 'normal' && (
+                  <Badge
+                      variant={
+                        event.priority === 'low'
+                            ? 'secondary'
+                            : event.priority === 'high'
+                                ? 'default'
+                                : 'destructive'        /* mandatory */
+                      }
+                      className={
+                        event.priority === 'low'
+                            ? 'bg-green-500 text-white'
+                            : event.priority === 'high'
+                                ? 'bg-yellow-400 text-black'
+                                : ''                    /* mandatory already red */
+                      }
+                  >
+                    {priorityLabel(event.priority)}
+                  </Badge>
+              )}
+            </div>
           </div>
         </CardHeader>
 

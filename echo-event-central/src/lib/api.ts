@@ -42,13 +42,36 @@ export const eventsAPI = {
     event_date: string;
     event_time: string;
     venue: string;
+    priority: 'normal' | 'low' | 'high' | 'mandatory';
   }) => api.post('/events', data),
+
+  getAllEvents: () => api.get('/events/search'),
+
+
+
 
 
   approveEvent: (eventId: string) => api.patch(`/events/${eventId}/approve`),
   rejectEvent:  (eventId: string) => api.patch(`/events/${eventId}/reject`),
   rsvpToEvent:  (eventId: string) => api.post(`/events/${eventId}/registrations`),
   cancelRsvp:   (eventId: string) => api.delete(`/events/${eventId}/registrations`),
+
+  updateEvent: (
+      id: string,
+      data: {
+        event_name: string;
+        description: string;
+        event_date: string;
+        event_time: string;
+        venue: string;
+        priority: 'normal' | 'low' | 'high' | 'mandatory';
+        status:   'pending' | 'approved' | 'rejected';
+      }
+  ) => api.patch(`/events/${id}`, data),
+};
+
+export const usersAPI = {
+    getCount: () => api.get('/users/count'),
 };
 
 export const registrationsAPI = {

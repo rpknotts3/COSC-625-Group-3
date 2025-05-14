@@ -9,52 +9,59 @@ import AdminSidebar from '@/components/AdminSidebar';
 import AdminDashboard from '@/components/AdminDashboard';
 import { Button } from '@/components/ui/button';
 
+/* ------------------------------------------------------------------ */
+/*  Types                                                              */
+/* ------------------------------------------------------------------ */
 interface EventRow {
   _id: string;
   event_name: string;
-  event_date: string;   // ISO
+  event_date: string;
   event_time: string;
-  location: string;
-  attendees?: number;
+  venue: string;
+  priority?: 'normal' | 'low' | 'high' | 'mandatory';
   status: 'pending' | 'approved' | 'rejected';
 }
 
 /* ------------------------------------------------------------------ */
 /*  Component                                                          */
 /* ------------------------------------------------------------------ */
-
-const AdminPanel = () => {
+const AdminPanel: React.FC = () => {
   /* ───────────── Auth guard ───────────── */
   const { user, isAdmin } = useAuth();
   const navigate = useNavigate();
 
   /* ───────────── Local state ──────────── */
-  const [isLoading, setIsLoading] = useState(true);
-  const [events, setEvents]       = useState<EventRow[]>([]);
-  const [busyId, setBusyId]       = useState<string | null>(null); // button disable
+  const [isLoading, setIsLoading]   = useState(true);
+  const [pending, setPending]       = useState<EventRow[]>([]);
+  const [allEvents, setAllEvents]   = useState<EventRow[]>([]);
+  const [busyId, setBusyId]         = useState<string | null>(null); // button disable
 
-  /* ───────────── CRUD helpers ─────────── */
-
-  const loadPendingEvents = useCallback(async () => {
+  /* ───────────── Data loader ──────────── */
+  const loadData = useCallback(async () => {
     try {
-      const { data } = await eventsAPI.searchEvents({ status: 'pending' });
-      setEvents(data);
+      /* 1. pending only (table) */
+      const { data: pend } = await eventsAPI.searchEvents({ status: 'pending' });
+      setPending(pend);
+
+      /* 2. every event (dashboard stats) */
+      const { data: all } = await eventsAPI.searchEvents({});
+      setAllEvents(all);
     } catch (err) {
       console.error(err);
-      toast.error('Failed to load pending events.');
+      toast.error('Failed to load admin data.');
     } finally {
       setIsLoading(false);
     }
   }, []);
 
+  /* ───────────── Approve / Reject ─────── */
   const handleApprove = async (id: string) => {
     try {
       setBusyId(id);
       await eventsAPI.approveEvent(id);
       toast.success('Event approved.');
-      await loadPendingEvents();
-    } catch (err) {
-      console.error(err);
+      await loadData();
+    } catch {
       toast.error('Approval failed.');
     } finally {
       setBusyId(null);
@@ -66,9 +73,8 @@ const AdminPanel = () => {
       setBusyId(id);
       await eventsAPI.rejectEvent(id);
       toast.success('Event rejected.');
-      await loadPendingEvents();
-    } catch (err) {
-      console.error(err);
+      await loadData();
+    } catch {
       toast.error('Rejection failed.');
     } finally {
       setBusyId(null);
@@ -87,17 +93,19 @@ const AdminPanel = () => {
       navigate('/');
       return;
     }
-    loadPendingEvents();
-  }, [user, isAdmin, navigate, loadPendingEvents]);
+    loadData();
+  }, [user, isAdmin, navigate, loadData]);
 
   /* ───────────── Stats for dashboard ──── */
   const stats = useMemo(() => {
-    const totalEvents    = events.length;
-    const upcomingEvents = events.filter(
-        (e) => new Date(e.event_date) > new Date()
+    const totalEvents    = allEvents.length;
+    const upcomingEvents = allEvents.filter(
+        e => new Date(e.event_date) > new Date()
     ).length;
+
+    /* registeredUsers = 0  (placeholder, until a user-count endpoint exists) */
     return { totalEvents, upcomingEvents, registeredUsers: 0 };
-  }, [events]);
+  }, [allEvents]);
 
   /* ───────────── Loading state ────────── */
   if (isLoading) {
@@ -116,14 +124,14 @@ const AdminPanel = () => {
         <AdminSidebar />
 
         <main className="flex-1 overflow-y-auto p-6 space-y-8">
-          {/* Headline cards etc. */}
+          {/* Dashboard headline cards */}
           <AdminDashboard stats={stats} events={[]} />
 
           {/* Pending-events table */}
           <section>
             <h2 className="text-xl font-semibold mb-4">Pending Events</h2>
 
-            {events.length === 0 ? (
+            {pending.length === 0 ? (
                 <p className="text-muted-foreground">No pending events 🎉</p>
             ) : (
                 <div className="overflow-x-auto">
@@ -133,23 +141,22 @@ const AdminPanel = () => {
                       <th className="py-2 pr-4 font-medium">Title</th>
                       <th className="py-2 pr-4 font-medium">Date</th>
                       <th className="py-2 pr-4 font-medium">Time</th>
-                      <th className="py-2 pr-4 font-medium">Location</th>
+                      <th className="py-2 pr-4 font-medium">Venue</th>
                       <th className="py-2 pr-4 font-medium">Actions</th>
                     </tr>
                     </thead>
                     <tbody>
-                    {events.map((e) => (
+                    {pending.map(e => (
                         <tr key={e._id} className="border-b last:border-0">
                           <td className="py-2 pr-4">{e.event_name}</td>
                           <td className="py-2 pr-4">
                             {new Date(e.event_date).toLocaleDateString()}
                           </td>
                           <td className="py-2 pr-4">{e.event_time}</td>
-                          <td className="py-2 pr-4">{e.location}</td>
+                          <td className="py-2 pr-4">{e.venue}</td>
                           <td className="py-2 pr-4 space-x-2">
                             <Button
                                 size="sm"
-                                variant="default"
                                 className="bg-emerald-600 hover:bg-emerald-700 text-white"
                                 disabled={busyId === e._id}
                                 onClick={() => handleApprove(e._id)}

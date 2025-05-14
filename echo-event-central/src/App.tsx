@@ -13,6 +13,9 @@ import Register from "./pages/Register";
 import CreateEvent from "./pages/CreateEvent";
 import AdminPanel from "./pages/AdminPanel";
 import NotFound from "./pages/NotFound";
+import AdminEvents      from './pages/AdminEvents';
+import AdminEventEdit   from './pages/AdminEventEdit';
+import EventList from "@/components/EventList.tsx";
 
 const queryClient = new QueryClient();
 
@@ -28,11 +31,13 @@ const App = () => (
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/create-event" element={<CreateEvent />} />
+
             <Route path="/admin" element={<AdminPanel />} />
-            <Route path="/admin/events" element={<AdminPanel />} />
             <Route path="/admin/users" element={<AdminPanel />} />
             <Route path="/admin/settings" element={<AdminPanel />} />
-            <Route path="*" element={<NotFound />} />
+            <Route path="/admin/events"     element={<AdminEvents />} />
+            <Route path="/admin/events/:id" element={<AdminEventEdit />} />
+            <Route path="*" element={<NotFound />} />n
           </Routes>
         </AuthProvider>
       </BrowserRouter>

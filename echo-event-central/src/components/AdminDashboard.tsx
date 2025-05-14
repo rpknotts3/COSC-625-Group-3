@@ -58,60 +58,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ stats, events }) => {
           </CardContent>
         </Card>
       </div>
-      
-      {/* Event Attendance Chart (from mockup) */}
-      <div className="mb-6">
-        <h2 className="text-xl font-semibold mb-4">Event Attendance</h2>
-        <Card>
-          <CardContent className="p-4">
-            <div className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis />
-                  <Tooltip />
-                  <Bar dataKey="attendees" fill="#5b9bd5" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-      
-      <div>
-        <h2 className="text-xl font-semibold mb-4">Manage Events</h2>
-        <Card>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-gray-50">
-                  <TableHead>EVENT</TableHead>
-                  <TableHead>DATE</TableHead>
-                  <TableHead>LOCATION</TableHead>
-                  <TableHead>ATTENDEES</TableHead>
-                  <TableHead>STATUS</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {events.map((event) => (
-                  <TableRow key={event.id}>
-                    <TableCell className="font-medium">{event.title}</TableCell>
-                    <TableCell>{event.date}</TableCell>
-                    <TableCell>{event.location}</TableCell>
-                    <TableCell>{event.attendees}</TableCell>
-                    <TableCell>
-                      <Badge variant={event.status === 'Published' ? 'default' : 'destructive'}>
-                        {event.status}
-                      </Badge>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      </div>
+
     </div>
   );
 };

@@ -48,6 +48,7 @@ const CreateEvent = () => {
   const [date, setDate] = React.useState<Date | undefined>();
   const [time, setTime] = React.useState('');   // HH:mm
   const [venue, setVenue] = React.useState(''); // <─ plain-text location
+  const [priority, setPriority] = React.useState<'normal'|'low'|'high'|'mandatory'>('normal');
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [errors, setErrors] = React.useState<Record<string, string>>({});
 
@@ -76,6 +77,7 @@ const CreateEvent = () => {
         event_date: date!.toISOString(),
         event_time: time,  // "HH:mm"
         venue,             // <─ send correct key
+        priority,
       });
       toast.success('Event created! Awaiting admin approval.');
       navigate('/');
@@ -171,6 +173,21 @@ const CreateEvent = () => {
                     {errors.time && (
                         <p className="text-destructive text-sm">{errors.time}</p>
                     )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="priority">Priority</Label>
+                    <select
+                        id="priority"
+                        className="w-full border rounded px-2 py-1"
+                        value={priority}
+                        onChange={e => setPriority(e.target.value as any)}
+                    >
+                      <option value="normal">Normal</option>
+                      <option value="low">Low</option>
+                      <option value="high">High</option>
+                      <option value="mandatory">Mandatory</option>
+                    </select>
                   </div>
 
                   {/* venue */}

@@ -12,6 +12,7 @@ interface Event {
   time: string;     // HH:mm
   venue: string; // room / address / link
   status: string;
+  priority: 'normal' | 'low' | 'high' | 'mandatory';
   rsvpCount: number;
   userRsvp: boolean;
 }
@@ -52,6 +53,7 @@ const EventList: React.FC<EventListProps> = ({ searchParams }) => {
         time:        e.event_time,
         venue:       e.venue_id || e.venue || e.location || '',
         status:      e.status,
+        priority:  e.priority ?? 'normal',
         rsvpCount:   e.rsvp_count ?? 0,
         userRsvp:    registered.has(e._id),
       }));
